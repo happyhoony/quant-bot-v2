@@ -1,0 +1,6 @@
+finance-datareader
+yfinance
+pandas
+opendartreader
+google-generativeai
+requests
