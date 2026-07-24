@@ -7,11 +7,13 @@ import OpenDartReader
 import google.generativeai as genai
 import requests
 
+# 1. API 키 셋업
 DART_KEY = os.environ.get('DART_API_KEY')
 GEMINI_KEY = os.environ.get('GEMINI_API_KEY')
 TG_TOKEN = os.environ.get('TELEGRAM_TOKEN')
 TG_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID')
 
+# 시간 셋업
 KST = timezone(timedelta(hours=9))
 now_kst = datetime.now(KST)
 today_date_str = now_kst.strftime('%Y-%m-%d')
@@ -50,7 +52,21 @@ try:
 
     dart = OpenDartReader(DART_KEY)
     genai.configure(api_key=GEMINI_KEY)
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    
+    # 🚨 [불사조 탐색 로직] 구글 정책 변경 대비 자동 생존 코드 이식 완료!
+    best_model = "gemini-3.5-flash"
+    try:
+        genai.GenerativeModel(best_model).generate_content("test")
+    except:
+        for m in genai.list_models():
+            if 'generateContent' in m.supported_generation_methods:
+                try:
+                    genai.GenerativeModel(m.name).generate_content("test")
+                    best_model = m.name
+                    break
+                except:
+                    continue
+    model = genai.GenerativeModel(best_model)
 
     report_items = []
     for item in passed_stocks:
@@ -73,11 +89,16 @@ try:
         
         report_items.append({'name': item['name'], 'price': item['price'], 'per': item['per'], 'ai': ai_text})
 
-    tg_msg = f"🚀 [슈퍼 성장주 AI 리포트 v2.0]\n📅 {now_kst.strftime('%Y년 %m월 %d일')}\n\n"
-    if not report_items: tg_msg += "⚠️ 오늘 신고가를 갱신한 우량 성장주가 없습니다."
+    # 텔레그램 발송 메시지에 어떤 AI 모델이 사용되었는지 표시
+    tg_msg = f"🚀 [슈퍼 성장주 AI 리포트 v2.0]\n📅 {now_kst.strftime('%Y년 %m월 %d일')}\n<i>(💡 AI 생존 모델: {best_model} 장착)</i>\n\n"
+    
+    if not report_items: 
+        tg_msg += "⚠️ 오늘 신고가를 갱신한 우량 성장주가 없습니다."
     else:
         for idx, r in enumerate(report_items):
             tg_msg += f"🔥 [{idx+1}] {r['name']}\n▪️ 현재가: {r['price']:,}원 / PER: {r['per']}배\n▪️ {r['ai']}\n\n"
+            
     send_telegram_message(tg_msg)
+    
 except Exception as e:
     print(e)
