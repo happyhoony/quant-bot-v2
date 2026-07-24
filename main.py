@@ -57,10 +57,11 @@ try:
             
             latest = df_price.iloc[-1]
             
-            cond_aligned = (latest['MA5'] > latest['MA20'] > latest['MA60'] > latest['MA120'])
+            # 🚨 [조건 완화] 빡빡했던 차트와 거래량 조건을 널널하게 풀었습니다.
+            cond_aligned = (latest['Close'] > latest['MA20'] and latest['MA20'] > latest['MA60'])
             cond_price = (latest['Close'] >= 1000)
             cond_vol_base = (latest['Vol_MA20'] >= 100000)
-            cond_vol_spike = (latest['Volume'] >= latest['Vol_MA20'] * 2.0) 
+            cond_vol_spike = (latest['Volume'] >= latest['Vol_MA20'] * 1.3) # 2배 -> 1.3배로 완화
             cond_red_candle = (latest['Close'] > latest['Open']) 
             
             if cond_aligned and cond_price and cond_vol_base and cond_vol_spike and cond_red_candle:
@@ -84,7 +85,8 @@ try:
             if eps is None: eps = 0
             if per is None: per = 0
 
-            if eps > 0 and 0 < per <= 50:
+            # 🚨 [조건 완화] PER 허들을 50에서 100으로 낮췄습니다.
+            if eps > 0 and 0 < per <= 100:
                 item['per'] = round(per, 2)
                 fundamental_passed_stocks.append(item)
         except:
@@ -95,7 +97,7 @@ try:
     dart = OpenDartReader(DART_KEY)
     genai.configure(api_key=GEMINI_KEY)
     
-    # 🚨 [불사조 탐색 로직] 구글 정책 변경 대비 자동 생존 코드 적용 완료!
+    # 🚨 [불사조 탐색 로직] 구글 정책 변경 대비 자동 생존 코드 장착
     best_model = "gemini-3.5-flash"
     try:
         genai.GenerativeModel(best_model).generate_content("test")
@@ -134,10 +136,10 @@ try:
     tg_msg = f"📊 [삼박자 퀀트 AI 리포트 v2.0]\n📅 분석 일자: {today_str_kr}\n<i>(💡 AI 생존 모델: {best_model} 장착)</i>\n\n"
     
     if len(report_items) == 0:
-        tg_msg += "⚠️ 오늘 장 기준으로 모든 조건을 만족하는 주도주가 포착되지 않았습니다."
+        tg_msg += "⚠️ 오늘 장 기준으로 완화된 조건을 만족하는 종목도 포착되지 않았습니다. (강력한 하락장 또는 관망세)"
     else:
         for idx, r in enumerate(report_items):
-            tg_msg += f"🔥 [{idx+1}] {r['name']} (거래량 {r['vol_mult']}배 폭발)\n▪️ 현재가: {r['price']:,}원 / PER: {r['per']}배\n▪️ {r['ai']}\n\n"
+            tg_msg += f"🔥 [{idx+1}] {r['name']} (거래량 {r['vol_mult']}배 증가)\n▪️ 현재가: {r['price']:,}원 / PER: {r['per']}배\n▪️ {r['ai']}\n\n"
             
     send_telegram_message(tg_msg)
 
