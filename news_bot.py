@@ -41,20 +41,33 @@ try:
     # 4. 각 뉴스마다 AI 분석 요청
     for idx, title in enumerate(news_titles):
         time.sleep(1) # AI 과부하 방지
-        prompt = f"""
-               당신은 여의도의 탑 퀀트 애널리스트입니다. 
-               오늘 경제 뉴스 헤드라인: "{title}"
-               이 뉴스가 한국 주식시장에 미치는 핵심 의미와 실질적인 수혜를 볼 수 있는 관련주 2~3개를 분석해 주세요.
-               반드시 아래 '작성 예시'와 똑같은 형식으로 '시장 의미:'와 '관련주:' 글자를 포함하여 딱 2줄만 작성해야 하며, 괄호([ ])나 영어는 절대 사용하지 마세요.
+        # --- 프롬프트 부분 시작 ---
+               prompt = f"""당신은 여의도 최고의 퀀트 애널리스트입니다.
+뉴스 헤드라인: "{title}"
+위 뉴스가 한국 주식시장에 미치는 영향과 수혜주를 분석해주세요.
 
-               작성 예시 1 (특정 섹터 호재인 경우):
-               시장 의미: 반도체 수출 호조로 인한 메모리 장비 섹터 투심 개선.
-               관련주: 삼성전자, SK하이닉스, 한미반도체
+[규칙]
+1. 영어, 괄호([ ]), 부가 설명은 절대 쓰지 마세요.
+2. 반드시 아래 2줄 형식에 맞춰서 한국어로만 대답하세요.
 
-               작성 예시 2 (코스피 지수 등 시장 전체 뉴스라 관련주를 꼽기 애매한 경우):
-               시장 의미: 외국인 수급 유입에 따른 국내 증시 전반의 상승 동력 확보.
-               관련주: 특정 종목보다 지수 추종 인덱스(KODEX 200 등) 유리.
-               """
+시장 의미: (여기에 뉴스 요약 및 시장 영향 작성)
+관련주: (여기에 수혜 종목명 2~3개 작성)
+"""
+               try:
+                   ai_res = model.generate_content(prompt)
+                   # 텍스트 정제 (불필요한 영어 기호 완벽 제거)
+                   raw_text = ai_res.text.replace('*', '').replace('"', '').replace("'", "").strip()
+                   lines = [line.strip() for line in raw_text.split('\n') if line.strip()]
+                   
+                   meaning = next((line for line in lines if "의미" in line), "시장 의미: 분석 불가")
+                   stocks = next((line for line in lines if "관련주" in line or "종목" in line), "관련주: 파악 불가")
+                   
+                   tg_msg += f"📰 <b>{idx+1}. {title}</b>\n"
+                   tg_msg += f"💡 {meaning}\n"
+                   tg_msg += f"🎯 {stocks}\n\n"
+               except Exception as e:
+                   tg_msg += f"📰 <b>{idx+1}. {title}</b>\n⚠️ AI 분석 지연\n\n"
+               # --- 프롬프트 부분 끝 ---
         try:
             ai_res = model.generate_content(prompt)
             # 불필요한 특수문자 제거 및 정리
