@@ -27,15 +27,35 @@ try:
     for item in root.findall('.//item')[:5]:
         news_titles.append(item.find('title').text)
 
-    # API 키가 깃허브에 잘 연결되었는지 확인
     if not GEMINI_KEY:
         send_telegram_message("❌ 깃허브에 제미나이 API 키(GEMINI_API_KEY)가 제대로 입력되지 않았습니다!")
         exit()
 
     genai.configure(api_key=GEMINI_KEY)
-    model = genai.GenerativeModel('gemini-1.5-flash-latest')
 
-    tg_msg = f"🌅 <b>[장전 모닝 뉴스 브리핑]</b>\n📅 {today_str}\n\n"
+    # 🚨 [핵심 해결책] 구글 서버에 '내가 쓸 수 있는 모델'을 물어보고 자동 선택!
+    available_models = []
+    for m in genai.list_models():
+        if 'generateContent' in m.supported_generation_methods:
+            available_models.append(m.name)
+    
+    if not available_models:
+        send_telegram_message("❌ 사용 가능한 Gemini 모델을 찾을 수 없습니다. API 키 문제일 수 있습니다.")
+        exit()
+
+    # 사용 가능한 모델 중 가장 빠르고 똑똑한 것(flash나 pro)을 자동 채택
+    best_model = available_models[0]
+    for name in available_models:
+        if 'flash' in name.lower():
+            best_model = name
+            break
+        elif 'pro' in name.lower():
+            best_model = name
+            
+    model = genai.GenerativeModel(best_model)
+    
+    # 텔레그램 메시지 상단에 '어떤 모델을 찾아냈는지' 표시해줍니다!
+    tg_msg = f"🌅 [장전 모닝 뉴스 브리핑]\n📅 {today_str}\n(💡 AI 모델 자동 매칭: {best_model.split('/')[-1]})\n\n"
 
     for idx, title in enumerate(news_titles):
         time.sleep(3)
@@ -50,6 +70,11 @@ try:
         
         try:
             ai_res = model.generate_content(prompt)
+            
+            if not ai_res.parts:
+                tg_msg += f"📰 {idx+1}. {title}\n💡 시장 의미: AI 민감어 필터링\n🎯 관련주: 개별 확인 필요\n\n"
+                continue
+
             raw_text = ai_res.text.replace('*', '').replace('"', '').replace("'", "").strip()
             lines = [line.strip() for line in raw_text.split('\n') if line.strip()]
             
@@ -62,12 +87,11 @@ try:
                 elif line.startswith("관련주:") or "관련주" in line or "종목" in line:
                     stocks = line
             
-            tg_msg += f"📰 <b>{idx+1}. {title}</b>\n💡 {meaning}\n🎯 {stocks}\n\n"
+            tg_msg += f"📰 {idx+1}. {title}\n💡 {meaning}\n🎯 {stocks}\n\n"
             
         except Exception as e:
-            # 🚨 핵심: 에러의 '진짜 원인'을 텔레그램으로 쏴줍니다!
             error_reason = str(e)[:150]
-            tg_msg += f"📰 <b>{idx+1}. {title}</b>\n⚠️ 에러 발생: {error_reason}\n\n"
+            tg_msg += f"📰 {idx+1}. {title}\n⚠️ 에러 발생: {error_reason}\n\n"
 
     tg_msg += "☕ 오늘도 성공적인 투자를 기원합니다!"
     send_telegram_message(tg_msg)
