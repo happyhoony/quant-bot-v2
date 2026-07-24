@@ -41,11 +41,13 @@ try:
             latest_ma20 = df_price['MA20'].iloc[-1]
             high_120 = df_price['High'].max()
             
-            # 조건: 고점 대비 30% 이상 하락했으나, 최근 20일선 위로 반등한 종목
-            if latest_close <= high_120 * 0.70 and latest_close > latest_ma20 and latest_close >= 1000:
+            # 🚨 [조건 완화] 고점 대비 30% 이상 폭락 -> 20% 이상 하락으로 완화 (건전한 조정 포함)
+            if latest_close <= high_120 * 0.80 and latest_close > latest_ma20 and latest_close >= 1000:
                 ticker = yf.Ticker(yahoo_symbol)
                 pbr = ticker.info.get('priceToBook', 0)
-                if pbr and 0 < pbr < 1.5: # 저 PBR 가치주
+                
+                # 🚨 [조건 완화] PBR 1.5 미만 -> PBR 2.0 이하로 완화
+                if pbr and 0 < pbr <= 2.0: 
                     passed_stocks.append({'name': name, 'price': int(latest_close), 'pbr': round(pbr, 2)})
                     if len(passed_stocks) >= 10: break
         except:
@@ -94,7 +96,7 @@ try:
     tg_msg = f"🔄 [턴어라운드 AI 리포트 v2.0]\n📅 {now_kst.strftime('%Y년 %m월 %d일')}\n<i>(💡 AI 생존 모델: {best_model} 장착)</i>\n\n"
     
     if not report_items: 
-        tg_msg += "⚠️ 오늘 확실하게 바닥을 다지고 반등하는 가치주가 없습니다."
+        tg_msg += "⚠️ 오늘 완화된 조건(고점 대비 20% 하락)을 만족하는 반등 가치주가 포착되지 않았습니다."
     else:
         for idx, r in enumerate(report_items):
             tg_msg += f"🎯 [{idx+1}] {r['name']}\n▪️ 현재가: {r['price']:,}원 / PBR: {r['pbr']}배\n▪️ {r['ai']}\n\n"
