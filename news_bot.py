@@ -19,27 +19,26 @@ def send_telegram_message(text):
     requests.post(url, data={'chat_id': TG_CHAT_ID, 'text': text, 'parse_mode': 'HTML'})
 
 try:
-    # 2. 구글 뉴스 가져오기
     rss_url = "https://news.google.com/rss/headlines/section/topic/BUSINESS?hl=ko&gl=KR&ceid=KR:ko"
     res = requests.get(rss_url)
     root = ET.fromstring(res.text)
     
     news_titles = []
     for item in root.findall('.//item')[:5]:
-        title = item.find('title').text
-        news_titles.append(title)
+        news_titles.append(item.find('title').text)
 
-    # 3. 제미나이 AI 설정
+    # API 키가 깃허브에 잘 연결되었는지 확인
+    if not GEMINI_KEY:
+        send_telegram_message("❌ 깃허브에 제미나이 API 키(GEMINI_API_KEY)가 제대로 입력되지 않았습니다!")
+        exit()
+
     genai.configure(api_key=GEMINI_KEY)
     model = genai.GenerativeModel('gemini-1.5-flash')
 
     tg_msg = f"🌅 <b>[장전 모닝 뉴스 브리핑]</b>\n📅 {today_str}\n\n"
 
-    # 4. 분석 요청 (구글 서버 차단 방지용 안전장치 강화)
     for idx, title in enumerate(news_titles):
-        # 🚨 핵심: 구글 서버가 과부하로 차단하지 않도록 3초씩 천천히 질문합니다.
-        time.sleep(3) 
-        
+        time.sleep(3)
         prompt = (
             f"당신은 주식 애널리스트입니다.\n"
             f"뉴스: '{title}'\n"
@@ -51,12 +50,6 @@ try:
         
         try:
             ai_res = model.generate_content(prompt)
-            
-            # AI가 전쟁/정치 뉴스라며 답변을 거부(필터링)했을 때의 방어막
-            if not ai_res.parts:
-                tg_msg += f"📰 <b>{idx+1}. {title}</b>\n💡 시장 의미: AI 민감어 필터링 (분석 제한)\n🎯 관련주: 개별 확인 필요\n\n"
-                continue
-                
             raw_text = ai_res.text.replace('*', '').replace('"', '').replace("'", "").strip()
             lines = [line.strip() for line in raw_text.split('\n') if line.strip()]
             
@@ -72,14 +65,12 @@ try:
             tg_msg += f"📰 <b>{idx+1}. {title}</b>\n💡 {meaning}\n🎯 {stocks}\n\n"
             
         except Exception as e:
-            # 깃허브 로그에 에러 원인을 남겨둠 (추후 확인용)
-            print(f"[{idx+1}번 뉴스 에러]: {e}")
-            tg_msg += f"📰 <b>{idx+1}. {title}</b>\n⚠️ AI 분석 지연 (서버 혼잡)\n\n"
+            # 🚨 핵심: 에러의 '진짜 원인'을 텔레그램으로 쏴줍니다!
+            error_reason = str(e)[:150]
+            tg_msg += f"📰 <b>{idx+1}. {title}</b>\n⚠️ 에러 발생: {error_reason}\n\n"
 
     tg_msg += "☕ 오늘도 성공적인 투자를 기원합니다!"
-    
-    # 5. 텔레그램 발송
     send_telegram_message(tg_msg)
 
 except Exception as e:
-    print("전체 프로세스 에러:", e)
+    send_telegram_message(f"🚨 시스템 전체 에러 발생: {e}")
