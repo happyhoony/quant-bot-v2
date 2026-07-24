@@ -39,12 +39,14 @@ try:
             latest_close = df_price['Close'].iloc[-1]
             high_120 = df_price['High'].max()
             
-            # 조건: 고점 대비 5% 이내 (신고가 근접)
-            if latest_close >= high_120 * 0.95 and latest_close >= 1000:
+            # 🚨 [조건 완화] 고점 대비 5% 이내 -> 15% 이내로 하락폭 허용치 확대
+            if latest_close >= high_120 * 0.85 and latest_close >= 1000:
                 ticker = yf.Ticker(yahoo_symbol)
                 eps = ticker.info.get('trailingEps', 0)
                 per = ticker.info.get('trailingPE', 0)
-                if eps and per and eps > 0 and 10 <= per <= 60:
+                
+                # 🚨 [조건 완화] PER 60 이하 -> PER 100 이하로 확대 (고성장주 포섭)
+                if eps and per and eps > 0 and 0 < per <= 100:
                     passed_stocks.append({'name': name, 'price': int(latest_close), 'per': round(per, 1)})
                     if len(passed_stocks) >= 10: break
         except:
@@ -93,7 +95,7 @@ try:
     tg_msg = f"🚀 [슈퍼 성장주 AI 리포트 v2.0]\n📅 {now_kst.strftime('%Y년 %m월 %d일')}\n<i>(💡 AI 생존 모델: {best_model} 장착)</i>\n\n"
     
     if not report_items: 
-        tg_msg += "⚠️ 오늘 신고가를 갱신한 우량 성장주가 없습니다."
+        tg_msg += "⚠️ 오늘 완화된 조건(고점 대비 15% 이내)을 만족하는 우량 성장주가 포착되지 않았습니다."
     else:
         for idx, r in enumerate(report_items):
             tg_msg += f"🔥 [{idx+1}] {r['name']}\n▪️ 현재가: {r['price']:,}원 / PER: {r['per']}배\n▪️ {r['ai']}\n\n"
