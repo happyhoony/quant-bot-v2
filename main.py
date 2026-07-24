@@ -10,11 +10,13 @@ import requests
 
 print("🚀 [삼박자 퀀트 AI 시스템 v2.0] 텔레그램 실시간 알림 가동...\n")
 
+# 1. API 키 셋업
 DART_KEY = os.environ.get('DART_API_KEY')
 GEMINI_KEY = os.environ.get('GEMINI_API_KEY')
 TG_TOKEN = os.environ.get('TELEGRAM_TOKEN')
 TG_CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID')
 
+# 시간 셋업
 KST = timezone(timedelta(hours=9))
 now_kst = datetime.now(KST)
 
@@ -92,10 +94,21 @@ try:
     print(f"3️⃣ [정보 분석] {len(final_stocks)}개 종목의 AI 모멘텀을 평가합니다...")
     dart = OpenDartReader(DART_KEY)
     genai.configure(api_key=GEMINI_KEY)
+    
+    # 🚨 [불사조 탐색 로직] 구글 정책 변경 대비 자동 생존 코드 적용 완료!
+    best_model = "gemini-3.5-flash"
     try:
-        model = genai.GenerativeModel('gemma-4-26b-a4b-it')
+        genai.GenerativeModel(best_model).generate_content("test")
     except:
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        for m in genai.list_models():
+            if 'generateContent' in m.supported_generation_methods:
+                try:
+                    genai.GenerativeModel(m.name).generate_content("test")
+                    best_model = m.name
+                    break
+                except:
+                    continue
+    model = genai.GenerativeModel(best_model)
 
     report_items = []
     for item in final_stocks:
@@ -118,12 +131,14 @@ try:
             ai_text = "AI 분석 지연"
         report_items.append({'name': corp_name, 'price': item['price'], 'per': item['per'], 'vol_mult': item['vol_multiple'], 'ai': ai_text})
 
-    tg_msg = f"📊 [삼박자 퀀트 AI 리포트 v2.0]\n📅 분석 일자: {today_str_kr}\n\n"
+    tg_msg = f"📊 [삼박자 퀀트 AI 리포트 v2.0]\n📅 분석 일자: {today_str_kr}\n<i>(💡 AI 생존 모델: {best_model} 장착)</i>\n\n"
+    
     if len(report_items) == 0:
         tg_msg += "⚠️ 오늘 장 기준으로 모든 조건을 만족하는 주도주가 포착되지 않았습니다."
     else:
         for idx, r in enumerate(report_items):
             tg_msg += f"🔥 [{idx+1}] {r['name']} (거래량 {r['vol_mult']}배 폭발)\n▪️ 현재가: {r['price']:,}원 / PER: {r['per']}배\n▪️ {r['ai']}\n\n"
+            
     send_telegram_message(tg_msg)
 
 except Exception as e:
